@@ -1,0 +1,149 @@
+version: '3.5'
+
+networks:
+  kong-net:
+    driver: bridge
+# networks:
+#   kong-net:
+#     external: false
+
+services:
+  #######################################
+  # Postgres: The database used by Kong
+  #######################################
+  kong-database:
+    image: postgres:9.6
+    restart: always
+    networks:
+      - kong-net
+    environment:
+      POSTGRES_PASSWORD: kong
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+    container_name: kong-database
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  #######################################
+  # Kong database migration
+  #######################################
+  kong-migration:
+    image: kong:latest
+    build:
+      dockerfile: kong-migration.Dockerfile
+      context: .
+    command: bash -c "/tmp/wait-for-it.sh 'kong-database' && kong migrations bootstrap"
+    container_name: kong-migration
+    networks:
+      - kong-net
+    # restart: on-failure
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_PASSWORD: kong
+      KONG_PG_HOST: kong-database
+    links:
+      - kong-database
+    depends_on:
+      - kong-database
+
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+
+  nginx-1:
+    image: nginx
+    container_name: nginx-1
+    volumes:
+      - ./ng1:/usr/share/nginx/html:ro
+      - ./ng1:/etc/nginx/conf.d:ro
+    networks:
+      - kong-net
+    ports:
+      - 9091:80
+
+  nginx-2:
+    image: nginx
+    container_name: nginx-2
+    volumes:
+      - ./ng2:/usr/share/nginx/html:ro
+      - ./ng2:/etc/nginx/conf.d:ro
+    networks:
+      - kong-net
+    ports:
+      - 9092:80
+
+  nginx-3:
+    image: nginx
+    container_name: nginx-3
+    volumes:
+      - ./ng3:/usr/share/nginx/html:ro
+      - ./ng3:/etc/nginx/conf.d:ro
+    networks:
+      - kong-net
+    ports:
+      - 9093:80
+
+  kong:
+    image: library/kong:latest
+    environment:
+      KONG_PG_PASSWORD: kong
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_CASSANDRA_CONTACT_POINTS: kong-database
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_LISTEN_SSL: 0.0.0.0:8444
+    container_name: kong
+    networks:
+      - kong-net
+    ports:
+      - 8000:8000
+      - 8443:8443
+      - 8001:8001
+      - 8444:8444
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+
+
+  kong-db-less:
+    container_name: kong-db-less
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/home/kong/kong.yml"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_LISTEN_SSL: 0.0.0.0:8444
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    image: library/kong:latest
+    networks:
+      - kong-net
+    ports:
+      - 8000:8000
+      - 8443:8443
+      - 8001:8001
+      - 8444:8444
+    restart: on-failure
+    volumes:
+      - ./kong-conf:/home/kong

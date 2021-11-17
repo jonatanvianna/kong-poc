@@ -1,0 +1,39 @@
+_format_version: "2.1"
+_transform: true
+
+
+services:
+- name: test
+  host: httpbin.org
+  path: /anything
+
+  routes:
+  - name: cli
+    paths:
+    - /clients
+    - /clients/search
+    - /clients/([a-zA-Z0-9]+)/google-ads/integration/confirm
+    - /clients/([a-zA-Z0-9]+)/assets/drive
+    - /clients/([a-zA-Z0-9]+)/assets/folder
+    - /clients/([a-zA-Z0-9]+)/assets/move
+    - /clients/([a-zA-Z0-9]+)/assets/rename
+    - /clients/([a-zA-Z0-9]+)/assets/search
+    - /clients/([a-zA-Z0-9]+)/assets/search-by-url
+    - /clients/([a-zA-Z0-9]+)/assets
+    - /clients/([a-zA-Z0-9]+)/disqualify
+    - /clients/([a-zA-Z0-9]+)/fonts/[a-zA-Z0-9]+/preview
+    - /clients/([a-zA-Z0-9]+)/fonts/[a-zA-Z0-9]+
+    - /clients/([a-zA-Z0-9]+)/fonts/variants
+    - /clients/([a-zA-Z0-9]+)/fonts
+    - /clients/([a-zA-Z0-9]+)/invite
+    - /clients/([a-zA-Z0-9]+)/profile/images
+    - /clients/([a-zA-Z0-9]+)/qualify
+    - /prospects
+
+plugins:
+- name: request-transformer
+  service: test
+  config:
+    add:
+      headers:
+      - x-tentant-id:$(uri_captures[1] or query_params["user"] or "unknown")
